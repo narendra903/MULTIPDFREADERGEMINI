@@ -7,6 +7,7 @@ from chromadb.utils import embedding_functions
 import google.generativeai as genai
 from transformers import pipeline
 from dotenv import load_dotenv
+from huggingface_hub import hf_hub_download
 import os
 
 # Load environment variables
@@ -37,6 +38,16 @@ embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_na
 # Load summarization model
 
 summarizer = pipeline("summarization",model="facebook/bart-large-cnn")
+
+# Use Hugging Face Hub to download and load the embedding model
+def load_embedding_model():
+    model_path = hf_hub_download(repo_id="sentence-transformers/all-MiniLM-L6-v2", filename="config.json")
+    return embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+
+# Load embedding function
+embedding_fn = load_embedding_model()
 
 # Create or load ChromaDB collection
 
