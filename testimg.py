@@ -5,7 +5,7 @@ import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
-from pdf2image import convert_from_path
+import fitz  # PyMuPDF
 import tempfile
 import google.generativeai as genai
 
@@ -35,23 +35,43 @@ def gemini_api_call(prompt, max_tokens=8192, input_token_limit=1048576):
 embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 # Function to extract text and images from PDFs
+
+
 def extract_text_and_images_from_pdfs(uploaded_files):
     combined_text = ""
     images = []
 
     for uploaded_file in uploaded_files:
-        # Extract text using pdfplumber
-        with pdfplumber.open(uploaded_file) as pdf:
-            for page in pdf.pages:
-                combined_text += page.extract_text() or ""
+        # Save uploaded file to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            temp_file.write(uploaded_file.getvalue())
+            temp_file_path = temp_file.name
 
-        # Extract images using pdf2image
-        with tempfile.TemporaryDirectory() as path:
-            images_from_pdf = convert_from_path(uploaded_file, output_folder=path)
-            for i, image in enumerate(images_from_pdf):
-                image_path = f"{path}/page_{i + 1}.png"
-                image.save(image_path, 'PNG')
+        # Extract text and images using PyMuPDF
+        pdf_document = fitz.open(temp_file_path)
+        for page_num in range(len(pdf_document)):
+            page = pdf_document[page_num]
+            combined_text += page.get_text()
+
+            # Extract images
+            for img_index, img in enumerate(page.get_images(full=True)):
+                xref = img[0]
+                base_image = pdf_document.extract_image(xref)
+                image_bytes = base_image["image"]
+                image_path = f"{tempfile.gettempdir()}/page_{page_num + 1}_img_{img_index + 1}.png"
+                with open(image_path, "wb") as img_file:
+                    img_file.write(image_bytes)
                 images.append(image_path)
+
+        pdf_document.close()
+        os.remove(temp_file_path)
+
+    return combined_text, images
+    for i, image in enumerate(images_from_pdf):
+            
+            image_path = f"{path}/page_{i + 1}.png"
+            image.save(image_path, 'PNG')
+            images.append(image_path)
 
     return combined_text, images
 
