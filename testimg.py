@@ -5,6 +5,8 @@ import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
+from pdf2image import convert_from_path
+import tempfile
 import google.generativeai as genai
 
 # Load environment variables
@@ -32,23 +34,26 @@ def gemini_api_call(prompt, max_tokens=8192, input_token_limit=1048576):
 # Text embedding model
 embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
-# Function to extract text from PDFs
+# Function to extract text and images from PDFs
 def extract_text_and_images_from_pdfs(uploaded_files):
-        combined_text = ""
-        images = []
-        for uploaded_file in uploaded_files:
-         with pdfplumber.open(uploaded_file) as pdf:
-            for page in pdf.pages:
-                combined_text += page.extract_text() or ""
+    combined_text = ""
+    images = []
 
-                # Extract images from the page
-                if "images" in page.to_image().metadata:
-                    for img in page.to_image().metadata["images"]:
-                        images.append(img)  # Collect images for later display
+    for uploaded_file in uploaded_files:
+        # Extract text using pdfplumber
         with pdfplumber.open(uploaded_file) as pdf:
             for page in pdf.pages:
                 combined_text += page.extract_text() or ""
-        return combined_text, images
+
+        # Extract images using pdf2image
+        with tempfile.TemporaryDirectory() as path:
+            images_from_pdf = convert_from_path(uploaded_file, output_folder=path)
+            for i, image in enumerate(images_from_pdf):
+                image_path = f"{path}/page_{i + 1}.png"
+                image.save(image_path, 'PNG')
+                images.append(image_path)
+
+    return combined_text, images
 
 # Function to split text into chunks while considering token limits
 def split_text(text, max_tokens=8192, token_overlap=500):
@@ -118,8 +123,8 @@ def main():
                 # Display extracted images
                 if images:
                     st.write("### Extracted Images:")
-                    for img in images:
-                        st.image(img, caption="Extracted Image", use_column_width=True)
+                    for img_path in images:
+                        st.image(img_path, caption="Extracted Image", use_column_width=True)
                         st.write(f"### Token Info: Input token limit: {1048576}, Output token limit: {8192}")
 
             # Split text and create FAISS index
