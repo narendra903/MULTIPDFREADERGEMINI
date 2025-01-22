@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import pdfplumber
 import faiss
+import numpy as np
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -9,14 +10,20 @@ import google.generativeai as genai
 # Load environment variables
 load_dotenv()
 
-# Gemini model setup
+# Configure the Gemini API key
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# Function to call Gemini model
+# Initialize the Gemini model
+gemini_model = genai.GenerativeModel(model_name="gemini-1.5-flash-8b")
+
+# Function to call the Gemini model
 def gemini_api_call(prompt, max_tokens=8192):
-    response = genai.chat(prompt=prompt, model="gemini-1.5-flash-8b", temperature=0.7, max_tokens=max_tokens)
-    if response and "content" in response:
-        return response["content"]
+    response = gemini_model.generate_content(
+        contents=prompt,
+        generation_config={"temperature": 0.7, "max_output_tokens": max_tokens}
+    )
+    if response and hasattr(response, 'text'):
+        return response.text
     else:
         raise Exception("Error calling Gemini model: No response or unexpected format.")
 
@@ -49,7 +56,7 @@ def split_text(text, max_tokens=8192, token_overlap=500):
 
 # Function to create FAISS vector store
 def create_faiss_vectorstore(chunks):
-    embeddings = [embedding_model.encode(chunk) for chunk in chunks]
+    embeddings = np.array([embedding_model.encode(chunk) for chunk in chunks]).astype('float32')
     dimension = len(embeddings[0])
     index = faiss.IndexFlatL2(dimension)
     index.add(embeddings)
@@ -111,8 +118,8 @@ def main():
             if question.strip():
                 with st.spinner("Finding the answer..."):
                     # Find the most relevant chunks
-                    query_embedding = embedding_model.encode(question)
-                    distances, indices = faiss_index.search([query_embedding], k=3)
+                    query_embedding = np.array([embedding_model.encode(question)]).astype('float32')
+                    distances, indices = faiss_index.search(query_embedding, k=3)
                     relevant_chunks = [chunk_map[i] for i in indices[0]]
                     context = " ".join(relevant_chunks)
 
@@ -128,4 +135,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
