@@ -77,7 +77,7 @@ def create_prompt(context, question):
 # Streamlit app
 def main():
     st.set_page_config(page_title="Multi-PDF Q&A Chatbot", layout="wide")
-    st.title("🤖 Multi-PDF Q&A Chatbot using Gemini")
+    st.title("📚 Multi-PDF Q&A Chatbot using Gemini")
 
     # Sidebar for file upload
     st.sidebar.header("Menu:")
