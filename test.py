@@ -67,13 +67,18 @@ def create_faiss_vectorstore(chunks):
 # Prompt template
 def create_prompt(context, question):
     return f"""
-    You are an intelligent assistant. Use the context below to answer the question:
+    🎉 Hello! I'm your intelligent assistant. Here's what I can do for you:
 
-    Context: {context}
+    - Provide concise, clear, and accurate answers.
+    - Offer explanations and bullet points where needed.
+    - Start every response with a friendly and professional tone.
+
+    Context for this query:
+    {context}
 
     Question: {question}
 
-    Answer:
+    Detailed Answer:
     """
 
 # Streamlit app
@@ -95,7 +100,7 @@ def main():
             # Extract text from uploaded PDFs
             with st.spinner("Extracting text from PDFs..."):
                 combined_text = extract_text_from_pdfs(uploaded_files)
-                st.write("Extracted Text Preview:", combined_text[:1000])
+                #st.write("Extracted Text Preview:", combined_text[:1000])
             st.write(f"### Token Info: Input token limit: {1048576}, Output token limit: {8192}")
 
             # Split text and create FAISS index
@@ -122,7 +127,7 @@ def main():
                 with st.spinner("Finding the answer..."):
                     # Find the most relevant chunks
                     query_embedding = np.array([embedding_model.encode(question)]).astype('float32')
-                    distances, indices = faiss_index.search(query_embedding, k=3)
+                    distances, indices = faiss_index.search(query_embedding, k=5)
                     relevant_chunks = [chunk_map[i] for i in indices[0]]
                     context = " ".join(relevant_chunks)
 
