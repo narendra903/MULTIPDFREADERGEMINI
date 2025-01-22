@@ -35,10 +35,9 @@ def gemini_api_call(prompt, max_tokens=8192, input_token_limit=1048576):
 embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 # Function to extract text and images from PDFs
-
-
 def extract_text_and_images_from_pdfs(uploaded_files):
-    combined_text = ""
+    combined_texts = []
+    file_sources = []
     images = []
 
     for uploaded_file in uploaded_files:
@@ -49,6 +48,7 @@ def extract_text_and_images_from_pdfs(uploaded_files):
 
         # Extract text and images using PyMuPDF
         pdf_document = fitz.open(temp_file_path)
+        combined_text = ""
         for page_num in range(len(pdf_document)):
             page = pdf_document[page_num]
             combined_text += page.get_text()
@@ -66,14 +66,10 @@ def extract_text_and_images_from_pdfs(uploaded_files):
         pdf_document.close()
         os.remove(temp_file_path)
 
-    return combined_text, images
-    for i, image in enumerate(images_from_pdf):
-            
-            image_path = f"{path}/page_{i + 1}.png"
-            image.save(image_path, 'PNG')
-            images.append(image_path)
+        combined_texts.append(combined_text)
+        file_sources.append(uploaded_file.name)
 
-    return combined_text, images
+    return combined_texts, images, file_sources
 
 # Function to split text into chunks while considering token limits
 def split_text(text, max_tokens=8192, token_overlap=500):
@@ -137,20 +133,26 @@ def main():
 
             # Extract text from uploaded PDFs
             with st.spinner("Extracting text from PDFs..."):
-                combined_text, images = extract_text_and_images_from_pdfs(uploaded_files)
-                st.write("Extracted Text Preview:", combined_text[:1000])
+                combined_texts, images, file_sources = extract_text_and_images_from_pdfs(uploaded_files)
+                st.write("Extracted Text Preview:", combined_texts[0][:1000])
 
                 # Display extracted images
                 if images:
                     st.write("### Extracted Images:")
                     for img_path in images:
                         st.image(img_path, caption="Extracted Image", use_column_width=True)
-                        st.write(f"### Token Info: Input token limit: {1048576}, Output token limit: {8192}")
+            st.write(f"### Token Info: Input token limit: {1048576}, Output token limit: {8192}")
 
             # Split text and create FAISS index
             with st.spinner("Processing text into chunks and generating embeddings..."):
-                chunks = split_text(combined_text, max_tokens=300, token_overlap=50)
+                chunks = []
+                file_chunk_map = []
+                for text, source in zip(combined_texts, file_sources):
+                    text_chunks = split_text(text, max_tokens=300, token_overlap=50)
+                    chunks.extend(text_chunks)
+                    file_chunk_map.extend([source] * len(text_chunks))
                 faiss_index, chunk_map = create_faiss_vectorstore(chunks)
+                st.session_state["file_map"] = file_chunk_map
                 st.write(f"Number of chunks added to FAISS: {len(chunks)}")
 
             st.session_state["faiss_index"] = faiss_index
@@ -172,15 +174,18 @@ def main():
                     # Find the most relevant chunks
                     query_embedding = np.array([embedding_model.encode(question)]).astype('float32')
                     distances, indices = faiss_index.search(query_embedding, k=5)
-                    relevant_chunks = [chunk_map[i] for i in indices[0]]
+                    relevant_chunks = [(chunk_map[i], st.session_state["file_map"][i]) for i in indices[0]]
                     relevant_chunks = sorted(relevant_chunks, key=lambda x: '09/06/2022' in x, reverse=True)  # Prioritize chunks with the date
-                    context = " ".join(relevant_chunks)
+                    context = " ".join([chunk for chunk, _ in relevant_chunks])
 
                     # Create prompt and get answer
                     prompt = create_prompt(context, question)
                     answer = gemini_api_call(prompt, max_tokens=8192)
 
                     st.markdown(f"<div style='background:#f9f9f9;padding:15px;border-radius:10px;'>{answer}</div>", unsafe_allow_html=True)
+                    st.write("### Sources:")
+                    for chunk, source_file in relevant_chunks:
+                        st.write(f"- From file: {source_file}")
             else:
                 st.warning("Please enter a question!")
     else:
