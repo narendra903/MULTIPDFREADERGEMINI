@@ -134,14 +134,14 @@ def main():
             # Extract text from uploaded PDFs
             with st.spinner("Extracting text from PDFs..."):
                 combined_texts, images, file_sources = extract_text_and_images_from_pdfs(uploaded_files)
-                st.write("Extracted Text Preview:", combined_texts[0][:1000])
+                #st.write("Extracted Text Preview:", combined_texts[0][:1000])
 
                 # Display extracted images
                 if images:
                     st.write("### Extracted Images:")
                     for img_path in images:
                         st.image(img_path, caption="Extracted Image", use_column_width=True)
-            st.write(f"### Token Info: Input token limit: {1048576}, Output token limit: {8192}")
+                    st.write(f"### Token Info: Input token limit: {1048576}, Output token limit: {8192}")
 
             # Split text and create FAISS index
             with st.spinner("Processing text into chunks and generating embeddings..."):
@@ -184,8 +184,9 @@ def main():
 
                     st.markdown(f"<div style='background:#f9f9f9;padding:15px;border-radius:10px;'>{answer}</div>", unsafe_allow_html=True)
                     st.write("### Sources:")
-                    for chunk, source_file in relevant_chunks:
-                        st.write(f"- From file: {source_file}")
+                    unique_sources = list(set([source_file for chunk, source_file in relevant_chunks if chunk in context]))
+                    for source_file in unique_sources:
+                        st.write(f"Source file: {source_file}")
             else:
                 st.warning("Please enter a question!")
     else:
