@@ -57,13 +57,16 @@ def split_text(text, max_tokens=8192, token_overlap=500):
 
     return chunks
 
-# Function to create ChromaDB collection
+# Function to create ChromaDB collection in In-Memory Mode
 def create_chroma_collection(chunks):
-    client = chromadb.PersistentClient(path="chroma_storage")
-    collection = client.get_or_create_collection(
-        name="pdf_chunks",
-        embedding_function=embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-    )
+    # Initialize Chroma in in-memory mode
+    client = chromadb.Client()
+
+    # Create an embedding function
+    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+
+    # Create a collection
+    collection = client.create_collection(name="pdf_chunks", embedding_function=embedding_function)
 
     # Add chunks to the collection
     for i, chunk in enumerate(chunks):
@@ -72,27 +75,24 @@ def create_chroma_collection(chunks):
             documents=[chunk],
             metadatas=[{"chunk_index": i}]
         )
+
     return collection
 
 # Prompt template
 def create_prompt(context, question):
-    suggest_format = "If the user asks for information in a tabular format, provide it as a table. If the user prefers explanations, provide detailed paragraphs and bullet points."
     return f"""
     🎉 Hello! I'm your intelligent assistant. Here's what I can do for you:
 
     - Provide concise, clear, and accurate answers.
-    - Offer explanations, bullet points, or tables based on the user's preference.
-    - Always deliver information in a professional and structured format.
+    - Offer explanations and bullet points where needed.
+    - Start every response with a friendly and professional tone.
 
     Context for this query:
     {context}
 
-    Question Asked by User: {question}
+    Question: {question}
 
-    {suggest_format}
-
-    Answer (in a line gap below):
-
+    Detailed Answer:
     """
 
 # Streamlit app
@@ -137,9 +137,9 @@ def main():
         if st.button("Get Answer"):
             if question.strip():
                 with st.spinner("Finding the answer..."):
-                    # Find the most relevant chunks
-                    query_result = collection.query(query_texts=[question], n_results=5)
-                    relevant_chunks = query_result["documents"]
+                    # Perform query to find relevant chunks
+                    results = collection.query(query_texts=[question], n_results=5)
+                    relevant_chunks = results["documents"]
                     context = " ".join(relevant_chunks)
 
                     # Create prompt and get answer
